@@ -1,0 +1,75 @@
+# Copyright 2017 Nicolas Lamirault <nicolas.lamirault@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# VERSION 2018-12-13
+# AUTHOR:         Nicolas Lamirault <nicolas.lamirault@gmail.com>
+# DESCRIPTION:    zeiot/minio
+
+FROM resin/generic-armv7ahf-alpine-golang:1.11-edge
+
+LABEL summary="minio for ARM" \
+      description="minio for ARM devices" \
+      name="zeiot/minio" \
+      url="https://github.com/zeiot/minio" \
+      maintainer="Nicolas Lamirault <nicolas.lamirault@gmail.com>"
+
+ENV minio_VERSION=RELEASE.2018-12-13T02-04-19Z
+
+RUN [ "cross-build-start" ]
+
+RUN apk add --no-cache ca-certificates \
+    && apk add --no-cache --virtual .build-deps unzip
+
+WORKDIR $GOPATH/src/github.com/minio
+
+ADD https://github.com/minio/minio/archive/RELEASE.2018-12-13T02-04-19Z.zip minio.zip
+RUN unzip minio.zip \
+    && pwd && ls \
+    && mv minio-RELEASE.2018-12-13T02-04-19Z minio \
+    && cd minio \
+    && GOOS=linux GOARCH=arm go build -o minio
+
+RUN [ "cross-build-end" ]
+
+FROM resin/armv7hf-debian:stretch
+
+LABEL summary="minio for ARM" \
+      description="minio for ARM devices" \
+      name="zeiot/minio" \
+      url="https://github.com/zeiot/minio" \
+      maintainer="Nicolas Lamirault <nicolas.lamirault@gmail.com>"
+
+RUN [ "cross-build-start" ]
+
+COPY --from=0 /go/src/github.com/minio/minio /usr/bin/minio
+
+RUN addgroup minio \
+    && adduser --system --group minio
+
+RUN mkdir -p /minio/logs \
+    && mkdir -p /minio/file \
+    && mkdir -p /minio/config \
+    && chown -R minio:minio /minio
+
+VOLUME /minio/logs
+VOLUME /minio/file
+VOLUME /minio/config
+
+EXPOSE 8200
+
+RUN [ "cross-build-end" ]
+
+ENTRYPOINT ["/usr/bin/minio"]
+
+CMD ["server"]
